@@ -1,0 +1,14 @@
+services:
+  FRCNN2:
+    image: frcnn2image
+    ports:
+        - "8888:8888"
+    volumes:
+        - ./:/app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
