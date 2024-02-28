@@ -6,7 +6,7 @@ INSTRUCTIONS FOR USE:
 4. Navigate to this folder using the command line and run the command - "docker build -t frcnn2image ." (This may take a bit)
 5. Still in the command line, type "docker compose up". A jupyter notebook environment should appear. If it does not, try pasting one of the links provided in the command line into your browser of choice
 6. Open the FRCNN2 notebook, all following instructions can be found there
-7. Once you are finished using the notebook, make sure to type the command "docker compose down" into the command line while in the FRCNN folder. This will ensure that the program is fully closed and won't waste your computers resources.
+7. Once you are finished using the notebook, make sure to type the command "docker compose down" into the command line while in the FRCNN folder. This will ensure that the program is fully closed and won't waste your computer's resources.
 
 
 [link]: https://www.docker.com/products/docker-desktop/
