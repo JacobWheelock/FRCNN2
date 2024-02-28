@@ -1,7 +1,7 @@
 # FRCNN2
 INSTRUCTIONS:
-1. Install Docker for Desktop [here][link]https://www.docker.com/products/docker-desktop/
+1. Install Docker for Desktop [here][link]
 
 
 
-[link]:[an_awesome_website_link]: https://stackoverflow.com
+[link]: https://www.docker.com/products/docker-desktop/
