@@ -1,5 +1,5 @@
 services:
-  napari-FRCNN2:
+  FRCNN2:
     image: frcnn2image
     volumes:
         - ./:/app
