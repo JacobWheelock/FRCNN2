@@ -1,4 +1,3 @@
-# FRCNN2
 INSTRUCTIONS FOR USE:
 1. Install Docker for Desktop [here][link]
 2. Download this repository using the "Code" dropdown
