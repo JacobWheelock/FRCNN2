@@ -3,3 +3,4 @@ plugins:
 - jekyll-remote-theme # add this line to the plugins list if you already have one
 title: [EZ-FRCNN]
 description: ['EZ-FRCNN aims to democratize access to the increasingly common FRCNN computer vision architecture by providing an open-source pipeline for annotating data, fine-tuning models pretrained on the COCO dataset, quantizing and pruning model, and running inferencing on videos or images.']
+show_downloads: [true]
