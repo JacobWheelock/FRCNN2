@@ -4,11 +4,16 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
 import time
+from torch.utils.data import Subset, DataLoader
+from torchvision.ops import box_iou
+import numpy as np
+from .utils import get_loaders
+from .utils import collate_fn
 
 def create_model(num_classes):
     
     # load Faster RCNN pre-trained model
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights='COCO_V1')
+    model = torchvision.models.detection.fasterrcnn_resnet50_fpn_v2(weights='COCO_V1')
     
     # get the number of input features 
     in_features = model.roi_heads.box_predictor.cls_score.in_features
@@ -160,3 +165,162 @@ def train_model(model, train_loader, valid_loader, DEVICE, MODEL_NAME, NUM_EPOCH
     
         plt.close('all')
     return [train_loss_list, val_loss_list]
+
+def get_subsampled_dataset(full_dataset, num_samples):
+    """ Randomly subsample the dataset to the specified number of samples. """
+    indices = np.random.permutation(len(full_dataset))[:num_samples]
+    return Subset(full_dataset, indices)
+
+def validate_mAP(data_loader, model, device):
+    model.eval()
+    all_gt_boxes = []
+    all_pred_boxes = []
+    all_scores = []
+    all_gt_labels = []
+    all_pred_labels = []
+
+    with torch.no_grad():
+        for images, targets in data_loader:
+            images = [image.to(device) for image in images]
+            outputs = model(images)
+
+            for i, output in enumerate(outputs):
+                # Predictions
+                pred_boxes = output['boxes'].to('cpu')
+                pred_labels = output['labels'].to('cpu')
+                scores = output['scores'].to('cpu')
+
+                # Ground truth
+                gt_boxes = targets[i]['boxes']
+                gt_labels = targets[i]['labels']
+
+                all_gt_boxes.append(gt_boxes)
+                all_pred_boxes.append(pred_boxes)
+                all_scores.append(scores)
+                all_gt_labels.append(gt_labels)
+                all_pred_labels.append(pred_labels)
+
+    # Calculate mAP
+    return calculate_mAP(all_gt_boxes, all_gt_labels, all_pred_boxes, all_pred_labels, all_scores)
+
+def calculate_mAP(all_gt_boxes, all_gt_labels, all_pred_boxes, all_pred_labels, all_scores, iou_threshold=0.5):
+    # This function computes the mAP at the specified IoU threshold
+    num_classes = max(max(l) for l in all_gt_labels) + 1  # assuming labels are zero-indexed
+
+    average_precisions = []
+    for c in range(num_classes):
+        detections = []
+        ground_truths = []
+
+        # Collect data for this class
+        for i in range(len(all_gt_labels)):
+            gt_indices = (all_gt_labels[i] == c)
+            pred_indices = (all_pred_labels[i] == c)
+
+            if gt_indices.any():
+                ground_truths.extend(all_gt_boxes[i][gt_indices].tolist())
+
+            if pred_indices.any():
+                detections.extend(
+                    zip(all_pred_boxes[i][pred_indices].tolist(),
+                        all_scores[i][pred_indices].tolist())
+                )
+
+        # Sort by scores
+        detections.sort(key=lambda x: x[1], reverse=True)
+        TP = np.zeros(len(detections))
+        FP = np.zeros(len(detections))
+        detected_boxes = []
+
+        # Calculate TP and FP
+        for d_idx, detection in enumerate(detections):
+            pred_box, score = detection
+            max_iou = 0
+            max_gt_idx = -1
+
+            for gt_idx, gt_box in enumerate(ground_truths):
+                iou = box_iou(torch.tensor([pred_box]), torch.tensor([gt_box])).item()
+                if iou > max_iou:
+                    max_iou = iou
+                    max_gt_idx = gt_idx
+
+            if max_iou >= iou_threshold:
+                if max_gt_idx not in detected_boxes:
+                    TP[d_idx] = 1
+                    detected_boxes.append(max_gt_idx)
+                else:
+                    FP[d_idx] = 1
+            else:
+                FP[d_idx] = 1
+
+        # Compute Precision and Recall
+        TP_cumsum = np.cumsum(TP)
+        FP_cumsum = np.cumsum(FP)
+        recalls = TP_cumsum / (len(ground_truths) + 1e-6)
+        precisions = TP_cumsum / (TP_cumsum + FP_cumsum + 1e-6)
+
+        # Compute AP
+        ap = np.trapz(precisions, recalls)
+        average_precisions.append(ap)
+
+    # Mean AP across all classes
+    mAP = sum(average_precisions) / len(average_precisions)
+    return mAP
+
+def run_experiment(full_train_dataset, valid_dataset, num_classes, BATCH_SIZE, NUM_EXPERIMENTS=10, EPOCHS_PER_EXPERIMENT=20, TRIALS_PER_EXPERIMENT=3):
+    # Device configuration
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # Directory setup for models and plots
+    model_dir = 'models/'
+    plot_dir = 'plots/'
+
+    # Calculate number of samples for each experiment
+    total_samples = len(full_train_dataset)
+    split_sizes = np.linspace(0, total_samples, NUM_EXPERIMENTS + 1, dtype=int)[1:]
+
+    results = []
+
+    # Create plot
+    plt.figure()
+    mean_mAPs = []
+    std_mAPs = []
+
+    for num_samples in split_sizes:
+        mAPs = []
+        for trial in range(TRIALS_PER_EXPERIMENT):
+            print(f"\nRunning training with {num_samples} samples, trial {trial + 1}...")
+
+            # Subsample the training dataset
+            train_subset = get_subsampled_dataset(full_train_dataset, num_samples)
+            train_loader, valid_loader = get_loaders(train_subset, valid_dataset, BATCH_SIZE, collate_fn)
+
+            # Initialize a fresh instance of the model
+            model = create_model(num_classes).to(device)
+
+            # Train the model
+            train_model(model, train_loader, valid_loader, device, 'experiment_model', EPOCHS_PER_EXPERIMENT, model_dir, plot_dir, 5, 5)
+
+            # Evaluate the model
+            val_mAP = validate_mAP(valid_loader, model, device)
+            mAPs.append(val_mAP)
+            print(f"Trial {trial + 1}: Validation mAP = {val_mAP:.3f}")
+
+        # Compute statistics
+        mean_mAP = np.mean(mAPs)
+        std_mAP = np.std(mAPs)
+        mean_mAPs.append(mean_mAP)
+        std_mAPs.append(std_mAP)
+        results.append((num_samples, mean_mAP, std_mAP))
+        print(f"Finished {num_samples} samples: Mean Validation mAP = {mean_mAP:.3f}, Std Dev = {std_mAP:.3f}")
+
+    # Plotting results
+    plt.errorbar(split_sizes, mean_mAPs, yerr=std_mAPs, fmt='-o', capsize=5)
+    plt.title('Mean and Standard Deviation of Validation mAP')
+    plt.xlabel('Number of Training Samples')
+    plt.ylabel('Validation mAP')
+    plt.grid(True)
+    plt.savefig(f"{plot_dir}/mAP_results.png")
+    plt.show()
+
+    return results
