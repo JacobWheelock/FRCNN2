@@ -12,6 +12,12 @@ model_name = ipywidgets.Text(
     description='Model Name:',
     disabled=False   
 )
+classes_text = ipywidgets.Text(
+    value='frog',
+    placeholder='Classes:',
+    description='Classes:',
+    disabled=False   
+)
 folder_name = ipywidgets.Text(
     value='./test_data/test_images/',
     placeholder='Image Folder:',
@@ -25,19 +31,20 @@ def handle_inf_images(clicks):
     if clicks > 0:
         model = load_model(model_name.value, MODEL_DIR, 2)
         [boxFileName, classFileName, scoreFileName] = ['boxes', 'classes', 'scores']
-        [bboxes, classes, scores] = inference_images(folder_name.value, model, OUT_DIR, threshold.value, ['background', 'frog'], tqdm)
+        print(['background'] + classes_text.value.replace(" ","").split(','))
+        [bboxes, classes, scores] = inference_images(folder_name.value, model, OUT_DIR, threshold.value, ['background'] + classes_text.value.replace(" ","").split(','), tqdm)
         saveBoxesClassesScores(boxFileName, classFileName, scoreFileName, bboxes, classes, scores, OUT_DIR)
         
 te = pn.Column(pn.bind(handle_inf_images, inference_button.param.clicks))
 
 
 #folderName = './test_data/test_images/'
-#[boxFileName, classFileName, scoreFileName] = ['boxes', 'classes', 'scores']
+#[boxFileName, classFileName, scoreFileName] = ['boxes', 'classes_text', 'scores']
 #[bboxes, classes, scores] = inference_images(folderName, model, OUT_DIR, detection_threshold, CLASSES)
 #saveBoxesClassesScores(boxFileName, classFileName, scoreFileName, bboxes, classes, scores, OUT_DIR)
 
 
-side = pn.Column(threshold, model_name, folder_name, inference_button)
+side = pn.Column(threshold, model_name, classes_text, folder_name, inference_button)
 
 pn.template.MaterialTemplate(
     site="EZ-FRCNN",

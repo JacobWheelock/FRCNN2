@@ -23,7 +23,7 @@ class getDataset(Dataset):
         self.classes = ['background'] + classes
         
         
-        image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp']
+        image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp', 'tif']
         all_extensions = image_extensions + [ext.upper() for ext in image_extensions]  # Add uppercase versions
         self.image_paths = glob.glob(f"{self.dir_path}/*.png")
         for extension in all_extensions:
@@ -42,9 +42,9 @@ class getDataset(Dataset):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(np.float32)
         image_resized = cv2.resize(image, (self.width, self.height))
         image_resized /= 255.0
-        
+        af = image_name.split('.')
         # capture the corresponding XML file for getting the annotations
-        annot_filename = image_name[:-4] + '.xml'
+        annot_filename = af[0] + '.xml'
         
         annot_file_path = self.dir_path + '/' + annot_filename
         
