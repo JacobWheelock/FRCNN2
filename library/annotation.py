@@ -8,7 +8,14 @@ import xmltodict
 import shutil
 import random
 from IPython.display import display, Javascript
+import cv2
+import base64
 
+def encode_image(filepath):
+    with open(filepath, 'rb') as f:
+        image_bytes = f.read()
+    encoded = str(base64.b64encode(image_bytes), 'utf-8')
+    return "data:image/jpg;base64,"+encoded
 
 def init_annotations(classes):
     global files, annotations, current_index  # Ensure these are accessible globally
@@ -24,9 +31,9 @@ def init_annotations(classes):
     if not files:
         print("No images found in the specified directory.")
         return
-
+    im = encode_image(os.path.join(path, files[0]))
     w_bbox = BBoxWidget(
-        image=os.path.join(path, files[0]),
+        image=im,
         classes=classes,
         hide_buttons=True
     )
@@ -38,8 +45,8 @@ def init_annotations(classes):
     def update_image_and_annotations():
         nonlocal label  # Indicates that we're using the `label` defined outside this function
         if current_index < len(files):
-            image_file = files[current_index]
-            w_bbox.image = os.path.join(path, image_file)  # Update the image in the widget
+            image_file = encode_image(os.path.join(path, files[0]))
+            w_bbox.image = image_file  # Update the image in the widget
             w_progress.value = current_index  # Update the progress bar
             label.value = files[current_index]  # Update the label
         else:
@@ -122,10 +129,9 @@ def split_images_and_xml(source_folder, train_folder ='./images/train/', test_fo
     all_extensions = image_extensions + [ext.upper() for ext in image_extensions]  # Add uppercase versions
     # Find all image files in the source folder. .
     image_files = glob.glob(os.path.join(source_folder, "*.png"))
-    path = './annotations/'
+    path = './annotations'
     for extension in all_extensions:
         image_files.extend(glob.glob(f"{path}/*.{extension}"))
-        
     # Shuffle the image files to ensure random selection
     random.shuffle(image_files)
     

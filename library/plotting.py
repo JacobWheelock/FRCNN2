@@ -2,12 +2,19 @@ import cv2
 import matplotlib.pyplot as plt
 from .utils import getDataset
 
-# function to visualize a single sample
-def visualize_sample(image, target, classes):
+def visualize_sample(TRAIN_DIR, RESIZE_TO, CLASSES, index):
+    dataset = getDataset(
+        TRAIN_DIR, RESIZE_TO, RESIZE_TO, CLASSES
+    )
+    
+    image, target = dataset[index]
+    fig = plt.figure()
+    ax = fig.subplots()
+    
     for i in range(0,len(target['boxes'])):
         box = target['boxes'][i]
-    
-        label = classes[target['labels'][i]]
+        classesBG = ['background'] + CLASSES
+        label = classesBG[target['labels'][i].item()]
     
         cv2.rectangle(
             image, 
@@ -18,13 +25,5 @@ def visualize_sample(image, target, classes):
             image, label, (int(box[0]), int(box[1]-5)), 
             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
             )
-        plt.imshow((image*255).astype('uint8'))
-
-def visualize_samples(NUM_SAMPLES, TRAIN_DIR, RESIZE_TO, CLASSES):
-    dataset = getDataset(
-        TRAIN_DIR, RESIZE_TO, RESIZE_TO, CLASSES
-    )
-    for i in range(NUM_SAMPLES):
-        image, target = dataset[i]
-        plt.figure()
-        visualize_sample(image, target, CLASSES)
+    plt.imshow(image)
+    return fig

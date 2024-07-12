@@ -4,7 +4,7 @@ from .plotting import *
 from .inferencing import *
 from .image_augs import *
 from .annotation import *
-from .perf_metrics import *
+from .characterize import *
 
 # training images and XML files directory
 TRAIN_DIR = './images/train'

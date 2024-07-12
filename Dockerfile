@@ -8,11 +8,12 @@ RUN python3 -m pip install -r requirements.txt
 
 # Make port 8888 available to the world outside this container
 EXPOSE 8888
+EXPOSE 8000
 
 # Copy the current directory contents into the container at /app
 COPY . /app
 
 
-CMD ["bash", "startup.sh"]
+
 
 

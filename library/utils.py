@@ -20,7 +20,7 @@ class getDataset(Dataset):
         self.dir_path = dir_path
         self.height = height
         self.width = width
-        self.classes = classes
+        self.classes = ['background'] + classes
         
         
         image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp']
@@ -45,10 +45,13 @@ class getDataset(Dataset):
         
         # capture the corresponding XML file for getting the annotations
         annot_filename = image_name[:-4] + '.xml'
+        
         annot_file_path = self.dir_path + '/' + annot_filename
+        
         boxes = []
         labels = []
         tree = et.parse(annot_file_path)
+        
         root = tree.getroot()
         
         # get the height and width of the image

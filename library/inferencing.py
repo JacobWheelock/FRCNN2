@@ -93,7 +93,7 @@ def inference_video(DIR_TEST, OUT_DIR, vidName, model, detection_threshold, CLAS
     print('TEST PREDICTIONS COMPLETE') 
     return [bboxes, classes, sscores]
 
-def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES):
+def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES, tqdmBar):
     imagePath = glob.glob(f"{DIR_TEST}/*.png")
     image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp']
     all_extensions = image_extensions + [ext.upper() for ext in image_extensions]  # Add uppercase versions
@@ -105,9 +105,9 @@ def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES):
     classes = [None] * num_images
     bboxes = [None] * num_images
     sscores = [None] * num_images
-    
-    for idx, el in enumerate(all_images):
-        
+   
+    for idx in tqdmBar(range(0,num_images)):
+        el = all_images[idx]
         orig_image = cv2.imread(DIR_TEST + '/' + el)
         # BGR to RGB
         image = cv2.cvtColor(orig_image, cv2.COLOR_BGR2RGB).astype(np.float32)
