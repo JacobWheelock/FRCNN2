@@ -95,7 +95,7 @@ def inference_video(DIR_TEST, OUT_DIR, vidName, model, detection_threshold, CLAS
 
 def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES, tqdmBar):
     imagePath = glob.glob(f"{DIR_TEST}/*.png")
-    image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp']
+    image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp', 'tif']
     all_extensions = image_extensions + [ext.upper() for ext in image_extensions]  # Add uppercase versions
     for extension in all_extensions:
             imagePath.extend(glob.glob(f"{DIR_TEST}/*.{extension}"))
@@ -164,7 +164,7 @@ def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES, tqd
 
 def inference_images_figs(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES):
     imagePath = glob.glob(f"{DIR_TEST}/*.png")
-    image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp']
+    image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp', 'tif']
     all_extensions = image_extensions + [ext.upper() for ext in image_extensions]  # Add uppercase versions
     for extension in all_extensions:
         imagePath.extend(glob.glob(f"{DIR_TEST}/*.{extension}"))
