@@ -10,7 +10,7 @@ if %errorlevel%==0 (
     set COMPOSE_FILE=docker-compose.gpuPane.yml
 ) else (
     echo GPU is not available. Using CPU configuration.
-    set COMPOSE_FILE=docker-compose.cpu.yml
+    set COMPOSE_FILE=docker-compose.cpuPane.yml
 )
 
 REM Start docker-compose with the appropriate file
