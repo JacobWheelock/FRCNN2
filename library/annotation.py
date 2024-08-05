@@ -45,7 +45,7 @@ def init_annotations(classes):
     def update_image_and_annotations():
         nonlocal label  # Indicates that we're using the `label` defined outside this function
         if current_index < len(files):
-            image_file = encode_image(os.path.join(path, files[0]))
+            image_file = encode_image(os.path.join(path, files[current_index]))
             w_bbox.image = image_file  # Update the image in the widget
             w_progress.value = current_index  # Update the progress bar
             label.value = files[current_index]  # Update the label
