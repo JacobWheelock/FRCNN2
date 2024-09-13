@@ -12,18 +12,19 @@ def visualize_sample(TRAIN_DIR, RESIZE_TO, CLASSES, index):
     ax = fig.subplots()
     
     for i in range(0,len(target['boxes'])):
-        box = target['boxes'][i]
-        classesBG = ['background'] + CLASSES
-        label = classesBG[target['labels'][i].item()]
-    
-        cv2.rectangle(
-            image, 
-            (int(box[0]), int(box[1])), (int(box[2]), int(box[3])),
-            (0, 255, 0), 1
-            )
-        cv2.putText(
-            image, label, (int(box[0]), int(box[1]-5)), 
-            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
-            )
+        if target['boxes'][i] is not None:
+            box = target['boxes'][i]
+            classesBG = ['background'] + CLASSES
+            label = classesBG[target['labels'][i].item()]
+
+            cv2.rectangle(
+                image, 
+                (int(box[0]), int(box[1])), (int(box[2]), int(box[3])),
+                (0, 255, 0), 1
+                )
+            cv2.putText(
+                image, label, (int(box[0]), int(box[1]-5)), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
+                )
     plt.imshow(image)
     return fig
