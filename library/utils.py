@@ -147,29 +147,3 @@ def get_loaders(train_dataset, valid_dataset, BATCH_SIZE, collate_fn):
     )
     return [train_loader, valid_loader]
 
-def saveBoxesClassesScores(boxesFileName, classFileName, scoreFileName, boxes, classes, scores, OUT_DIR):
-    classPath = OUT_DIR + '/' + classFileName + '.csv'
-    boxPath = OUT_DIR + '/' + boxesFileName + '.csv'
-    scorePath = OUT_DIR + '/' + scoreFileName + '.csv'
-    with open(boxPath, 'w', newline='') as f:
-        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-        for el in boxes:
-            if (type(el) == type(None)):
-                writer.writerow([0])
-            else:
-                writer.writerow(el)
-    with open(classPath, 'w', newline='') as f:
-        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-        for el in classes:
-            if (type(el) == type(None)):
-                writer.writerow([0])
-            else:
-                writer.writerow(el)
-
-    with open(scorePath, 'w', newline='') as f:
-        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-        for el in scores:
-            if (type(el) == type(None)):
-                writer.writerow([0])
-            else:
-                writer.writerow(el)

@@ -3,7 +3,9 @@ import torch
 import cv2
 import glob as glob
 from .training import create_model
+from .utils import *
 from torchvision.ops import box_iou
+import os
 
 def load_model(model_name, MODEL_DIR, NUM_CLASSES):
     # set the computation device
@@ -93,20 +95,34 @@ def inference_video(DIR_TEST, OUT_DIR, vidName, model, detection_threshold, CLAS
     print('TEST PREDICTIONS COMPLETE') 
     return [bboxes, classes, sscores]
 
+def saveResultsToCSV(csvFileName, results, OUT_DIR):
+    csv_path = os.path.join(OUT_DIR, f"{csvFileName}.csv")
+    
+    # Open CSV file and write the data
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+        writer.writerow(['Image Name', 'Bounding Boxes', 'Classes', 'Scores'])  # CSV Header
+        
+        for result in results:
+            writer.writerow([result['image_name'], result['boxes'], result['classes'], result['scores']])
+
 def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES, tqdmBar):
     imagePath = glob.glob(f"{DIR_TEST}/*.png")
     image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp', 'tif']
     all_extensions = image_extensions + [ext.upper() for ext in image_extensions]  # Add uppercase versions
     for extension in all_extensions:
-            imagePath.extend(glob.glob(f"{DIR_TEST}/*.{extension}"))
+        imagePath.extend(glob.glob(f"{DIR_TEST}/*.{extension}"))
     all_images = [image_path.split('/')[-1] for image_path in imagePath]
     all_images = sorted(all_images)
     num_images = len(all_images)
     classes = [None] * num_images
     bboxes = [None] * num_images
     sscores = [None] * num_images
-   
-    for idx in tqdmBar(range(0,num_images)):
+    
+    # List to store results for CSV
+    results = []
+
+    for idx in tqdmBar(range(0, num_images)):
         el = all_images[idx]
         orig_image = cv2.imread(DIR_TEST + '/' + el)
         # BGR to RGB
@@ -122,11 +138,13 @@ def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES, tqd
             image = torch.tensor(image, dtype=torch.float)
         # add batch dimension
         image = torch.unsqueeze(image, 0)
+
         with torch.no_grad():
             outputs = model(image)
         
         # load all detection to CPU for further operations
         outputs = [{k: v.to('cpu') for k, v in t.items()} for t in outputs]
+
         # carry further only if there are detected boxes
         if len(outputs[0]['boxes']) != 0:
             boxes = outputs[0]['boxes'].data.numpy()
@@ -138,27 +156,39 @@ def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES, tqd
             bboxes[idx] = boxes
             draw_boxes = bboxes[idx].copy() 
              
-            # get all the predicited class names
+            # get all the predicted class names
             pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
             pred_classes = np.array(pred_classes)
             pred_classes = pred_classes[scores >= detection_threshold]
             classes[idx] = pred_classes
+
+            # Store results for this image in the list
+            results.append({
+                'image_name': el,
+                'boxes': boxes.tolist(),
+                'classes': pred_classes.tolist(),
+                'scores': sscores[idx].tolist()
+            })
+
             # draw the bounding boxes and write the class name on top of it
             for j, box in enumerate(draw_boxes):
                 cv2.rectangle(orig_image,
-                            (int(box[0]), int(box[1])),
-                            (int(box[2]), int(box[3])),
-                            (0, 0, 255), 2)
+                              (int(box[0]), int(box[1])),
+                              (int(box[2]), int(box[3])),
+                              (0, 0, 255), 2)
                 cv2.putText(orig_image, str(pred_classes[j]), 
                             (int(box[0]), int(box[1]-5)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 
                             2, lineType=cv2.LINE_AA)
-            cv2.imwrite(OUT_DIR + '/' + el, orig_image) #The 'el' filepath is broken right now (TODO: FIX) 
+            cv2.imwrite(f"{OUT_DIR}/{el}", orig_image)  # Save the image with bounding boxes
 
         print(f"Image {idx+1} done...")
         print('-'*50)
 
-    print('TEST PREDICTIONS COMPLETE') 
+    # Save all results to a single CSV
+    saveResultsToCSV('inference_results', results, OUT_DIR)
+
+    print('TEST PREDICTIONS COMPLETE')
     return [bboxes, classes, sscores]
 
 
