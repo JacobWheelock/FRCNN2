@@ -15,7 +15,7 @@ def encode_image(filepath):
     with open(filepath, 'rb') as f:
         image_bytes = f.read()
     encoded = str(base64.b64encode(image_bytes), 'utf-8')
-    return "data:image/jpg;base64,"+encoded
+    return "data:image/png;base64,"+encoded
 
 def init_annotations(classes):
     global files, annotations, current_index  # Ensure these are accessible globally
@@ -44,10 +44,12 @@ def init_annotations(classes):
     # Define the function to update the image and label
     def update_image_and_annotations():
         nonlocal label  # Indicates that we're using the `label` defined outside this function
+        global current_index
         if current_index < len(files):
-            image_file = encode_image(os.path.join(path, files[0]))
+            image_file = encode_image(os.path.join(path, files[current_index]))
             w_bbox.image = image_file  # Update the image in the widget
             w_progress.value = current_index  # Update the progress bar
+            w_progress.description = f"{current_index + 1} / {len(files)}"  # Update the progress bar name with index/total
             label.value = files[current_index]  # Update the label
         else:
             print("Reached the end of the file list.")
@@ -97,7 +99,14 @@ def init_annotations(classes):
     submit_button.on_click(submit)
 
     # Progress bar to show how far we got
-    w_progress = widgets.IntProgress(value=0, max=len(files)-1, description='Progress')
+    # Progress bar to show how far we got, moved slightly to the left using margin
+    w_progress = widgets.IntProgress(
+        value=0, 
+        max=len(files)-1, 
+        description=f'1 / {len(files)}',
+        layout=widgets.Layout(width='287px', margin='0 0 0 -40px')  # Adjust width and left margin
+    )
+
     
     # Combine widgets into containers
     navigation_buttons = widgets.HBox([go_back_button, skip_button, submit_button, reset_button], layout=Layout(margin='0 0 0 3px'))
@@ -107,6 +116,7 @@ def init_annotations(classes):
         w_progressLabeled,
         navigation_buttons,
         w_bbox,
+        
     ])
    
     return w_container

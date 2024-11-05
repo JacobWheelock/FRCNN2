@@ -2,18 +2,20 @@ import cv2
 import matplotlib.pyplot as plt
 from .utils import getDataset
 
-def visualize_sample(TRAIN_DIR, RESIZE_TO, CLASSES, index):
+def visualize_sample(TRAIN_DIR, RESIZE_TO, index):
     dataset = getDataset(
-        TRAIN_DIR, RESIZE_TO, RESIZE_TO, CLASSES
+        TRAIN_DIR, RESIZE_TO, RESIZE_TO
     )
     
     image, target = dataset[index]
-    fig = plt.figure()
+    fig = plt.figure(figsize=(4, 4))
     ax = fig.subplots()
-    
+    ax.axis('off')  # This hides both the axes and the ticks
+    plt.tight_layout()  # This automatically adjusts the padding
+
     for i in range(0,len(target['boxes'])):
         box = target['boxes'][i]
-        classesBG = ['background'] + CLASSES
+        classesBG = dataset.classes
         label = classesBG[target['labels'][i].item()]
     
         cv2.rectangle(

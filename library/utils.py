@@ -5,7 +5,7 @@ import glob as glob
 import xml.etree.ElementTree as et
 import csv
 import numpy as np
-
+import os
 
 def collate_fn(batch):
     """
@@ -15,12 +15,12 @@ def collate_fn(batch):
     return tuple(zip(*batch))
 
 class getDataset(Dataset):
-    def __init__(self, dir_path, width, height, classes, transforms=None):
+    def __init__(self, dir_path, width, height, transforms=None):
         self.transforms = transforms
         self.dir_path = dir_path
         self.height = height
         self.width = width
-        self.classes = ['background'] + classes
+        self.classes = self.get_classes_from_annotations()
         
         
         image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp', 'tif']
@@ -28,14 +28,36 @@ class getDataset(Dataset):
         self.image_paths = glob.glob(f"{self.dir_path}/*.png")
         for extension in all_extensions:
             self.image_paths.extend(glob.glob(f"{self.dir_path}/*.{extension}"))
-        # get all the image paths in sorted order
+        # Extract just the filenames
+        self.all_images = [os.path.basename(image_path) for image_path in self.image_paths]
         
-        self.all_images = [image_path.split('/')[-1] for image_path in self.image_paths]
         self.all_images = sorted(self.all_images)
+        
+    def get_classes_from_annotations(self):
+        """
+        Parse all XML files in the dataset directory to build a list of unique classes.
+        """
+        classes = set()
+        xml_files = glob.glob(f"{self.dir_path}/*.xml")
+        for xml_file in xml_files:
+            tree = et.parse(xml_file)
+            root = tree.getroot()
+            for member in root.findall('object'):
+                try:
+                    class_name = member.find('class').text
+                except:
+                    class_name = member.find('label').text
+                classes.add(class_name)
+        
+        # Add 'background' as the first class and sort the rest alphabetically
+        return ['background'] + sorted(classes)
+    
     def __getitem__(self, idx):
         # capture the image name and the full image path
         image_name = self.all_images[idx]
-        image_path = self.dir_path + '/' + image_name
+        #print(image_name)
+        image_path = os.path.join(self.dir_path, image_name)
+        #print(image_path)
         # read the image
         image = cv2.imread(image_path)
         # convert BGR to RGB color format
@@ -146,30 +168,3 @@ def get_loaders(train_dataset, valid_dataset, BATCH_SIZE, collate_fn):
     collate_fn=collate_fn
     )
     return [train_loader, valid_loader]
-
-def saveBoxesClassesScores(boxesFileName, classFileName, scoreFileName, boxes, classes, scores, OUT_DIR):
-    classPath = OUT_DIR + '/' + classFileName + '.csv'
-    boxPath = OUT_DIR + '/' + boxesFileName + '.csv'
-    scorePath = OUT_DIR + '/' + scoreFileName + '.csv'
-    with open(boxPath, 'w', newline='') as f:
-        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-        for el in boxes:
-            if (type(el) == type(None)):
-                writer.writerow([0])
-            else:
-                writer.writerow(el)
-    with open(classPath, 'w', newline='') as f:
-        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-        for el in classes:
-            if (type(el) == type(None)):
-                writer.writerow([0])
-            else:
-                writer.writerow(el)
-
-    with open(scorePath, 'w', newline='') as f:
-        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-        for el in scores:
-            if (type(el) == type(None)):
-                writer.writerow([0])
-            else:
-                writer.writerow(el)

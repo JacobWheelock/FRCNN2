@@ -4,6 +4,10 @@ import cv2
 import glob as glob
 from .training import create_model
 from torchvision.ops import box_iou
+import matplotlib.pyplot as plt
+import os
+from .utils import *
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 def load_model(model_name, MODEL_DIR, NUM_CLASSES):
     # set the computation device
@@ -17,7 +21,17 @@ def load_model(model_name, MODEL_DIR, NUM_CLASSES):
     model.eval()
     return model
 
-
+def saveResultsToCSV(csvFileName, results, OUT_DIR):
+    csv_path = os.path.join(OUT_DIR, f"{csvFileName}.csv")
+    
+    # Open CSV file and write the data
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+        writer.writerow(['Image Name', 'Bounding Boxes', 'Classes', 'Scores'])  # CSV Header
+        
+        for result in results:
+            writer.writerow([result['image_name'], result['boxes'], result['classes'], result['scores']])
+            
 def inference_video(DIR_TEST, OUT_DIR, vidName, model, detection_threshold, CLASSES, save_detections=False):
     vid = cv2.VideoCapture(DIR_TEST)
     property_id = int(cv2.CAP_PROP_FRAME_COUNT) 
@@ -93,7 +107,7 @@ def inference_video(DIR_TEST, OUT_DIR, vidName, model, detection_threshold, CLAS
     print('TEST PREDICTIONS COMPLETE') 
     return [bboxes, classes, sscores]
 
-def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES, tqdmBar):
+def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES, tqdmBar, inf_fig):
     imagePath = glob.glob(f"{DIR_TEST}/*.png")
     image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp', 'tif']
     all_extensions = image_extensions + [ext.upper() for ext in image_extensions]  # Add uppercase versions
@@ -105,7 +119,8 @@ def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES, tqd
     classes = [None] * num_images
     bboxes = [None] * num_images
     sscores = [None] * num_images
-   
+    # List to store results for CSV
+    results = []
     for idx in tqdmBar(range(0,num_images)):
         el = all_images[idx]
         orig_image = cv2.imread(DIR_TEST + '/' + el)
@@ -143,23 +158,126 @@ def inference_images(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES, tqd
             pred_classes = np.array(pred_classes)
             pred_classes = pred_classes[scores >= detection_threshold]
             classes[idx] = pred_classes
+            # Store results for this image in the list
+            results.append({
+                'image_name': el,
+                'boxes': boxes.tolist(),
+                'classes': pred_classes.tolist(),
+                'scores': sscores[idx].tolist()
+            })
             # draw the bounding boxes and write the class name on top of it
+            fig, ax = plt.subplots(1, figsize=(4,4))
+            ax.axis('off')
+            orig_image_rgb = cv2.cvtColor(orig_image, cv2.COLOR_BGR2RGB)
+            plt.tight_layout()
+            ax.imshow(orig_image_rgb)
+            
+            inf_fig.object = fig
             for j, box in enumerate(draw_boxes):
-                cv2.rectangle(orig_image,
+                cv2.rectangle(orig_image_rgb,
                             (int(box[0]), int(box[1])),
                             (int(box[2]), int(box[3])),
-                            (0, 0, 255), 2)
-                cv2.putText(orig_image, str(pred_classes[j]), 
+                            (255, 0, 0), 5)
+                cv2.putText(orig_image_rgb, str(pred_classes[j]), 
                             (int(box[0]), int(box[1]-5)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 
                             2, lineType=cv2.LINE_AA)
-            cv2.imwrite(OUT_DIR + '/' + el, orig_image) #The 'el' filepath is broken right now (TODO: FIX) 
-
-        print(f"Image {idx+1} done...")
-        print('-'*50)
-
+            writeOut = cv2.cvtColor(orig_image_rgb, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(OUT_DIR + '/' + el, writeOut) #The 'el' filepath is broken right now (TODO: FIX) 
+            ax.axis('off')  # Remove the axis for cleaner visualization
+            plt.tight_layout()
+            ax.imshow(orig_image_rgb)
+            # Update the inf_fig pane with the new figure
+            inf_fig.object = fig
+            plt.close()
+        #print(f"Image {idx+1} done...")
+        #print('-'*50)
+    
+    saveResultsToCSV('inference_results', results, OUT_DIR)
     print('TEST PREDICTIONS COMPLETE') 
-    return [bboxes, classes, sscores]
+    return results
+
+def load_and_preprocess_image(file_path, target_size=(800, 800)):
+    """Load and preprocess an image with resizing for inference, while storing original dimensions."""
+    orig_image = cv2.imread(file_path)
+    orig_height, orig_width = orig_image.shape[:2]
+    resized_image = cv2.resize(orig_image, target_size)  # Resize to fixed size
+    image_rgb = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+    image_tensor = torch.tensor(np.transpose(image_rgb, (2, 0, 1)), dtype=torch.float)
+    return image_tensor, os.path.basename(file_path), (orig_width, orig_height)
+
+def scale_boxes_to_original(boxes, original_size, resized_size=(800, 800)):
+    """Scale bounding boxes back to original image size."""
+    orig_width, orig_height = original_size
+    resized_width, resized_height = resized_size
+    x_scale = orig_width / resized_width
+    y_scale = orig_height / resized_height
+    scaled_boxes = []
+    for box in boxes:
+        x_min, y_min, x_max, y_max = box
+        scaled_boxes.append([
+            x_min * x_scale, y_min * y_scale,
+            x_max * x_scale, y_max * y_scale
+        ])
+    return np.array(scaled_boxes)
+
+def inference_images_fast(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES, tqdmBar, batch_size=4):
+    # Collect all image paths
+    image_extensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp']
+    all_image_paths = []
+    for ext in image_extensions + [ext.upper() for ext in image_extensions]:
+        all_image_paths.extend(glob.glob(f"{DIR_TEST}/*.{ext}"))
+    all_image_paths = sorted(all_image_paths)
+
+    # Prepare results list for annotations
+    results = []
+    
+    # Device setup
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model.to(device)
+    model.eval()
+
+    # Process images in batches
+    with ThreadPoolExecutor() as executor:
+        for start_idx in tqdmBar(range(0, len(all_image_paths), batch_size), desc="Inference Progress"):
+            # Load images in parallel
+            batch_paths = all_image_paths[start_idx:start_idx + batch_size]
+            batch_data = list(executor.map(load_and_preprocess_image, batch_paths))
+            
+            # Separate image tensors and filenames
+            images, filenames, original_sizes = zip(*batch_data)
+            images = torch.stack(images).to(device)
+            
+            # Run inference
+            with torch.no_grad():
+                outputs = model(images)
+            
+            # Process each image output
+            for i, output in enumerate(outputs):
+                scores = output['scores'].cpu().numpy()
+                boxes = output['boxes'][scores >= detection_threshold].cpu().numpy()
+                labels = output['labels'][scores >= detection_threshold].cpu().numpy()
+                
+                # Scale boxes back to original image size
+                orig_size = original_sizes[i]
+                scaled_boxes = scale_boxes_to_original(boxes, orig_size)
+                
+                # Store annotation results
+                pred_classes = [CLASSES[label] for label in labels]
+                result = {
+                    'image_name': filenames[i],
+                    'boxes': scaled_boxes.tolist(),
+                    'classes': pred_classes,
+                    'scores': scores[scores >= detection_threshold].tolist()
+                }
+                results.append(result)
+
+    # Save results to JSON or CSV
+    saveResultsToCSV('inference_results', results, OUT_DIR)
+    print('TEST PREDICTIONS COMPLETE')
+    
+    return results
 
 
 def inference_images_figs(DIR_TEST, model, OUT_DIR, detection_threshold, CLASSES):

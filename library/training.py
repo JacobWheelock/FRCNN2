@@ -120,7 +120,9 @@ def train_model(model, train_loader, valid_loader, DEVICE, MODEL_NAME, NUM_EPOCH
     # train and validation loss lists to store loss values of all...
     # ... iterations till ena and plot graphs for all iterations
     train_loss_list = []
+    train_loss_plot_list = []
     val_loss_list = []
+    val_loss_plot_list = []
     for epoch, data in enumerate(tqdm_all):
         print(f"\nEPOCH {epoch+1} of {NUM_EPOCHS}")
         # reset the training and validation loss histories for the current epoch
@@ -129,6 +131,7 @@ def train_model(model, train_loader, valid_loader, DEVICE, MODEL_NAME, NUM_EPOCH
         # create two subplots, one for each, training and validation
         figure_1, train_ax = plt.subplots()
         figure_2, valid_ax = plt.subplots()
+        figure, ax = plt.subplots(figsize=(4, 4))  # Make the figure smaller (6x4 inches)
         # start timer and carry out training and validation
         start = time.time()
         train_loss = train(train_loader, model, optimizer, train_loss_list, train_loss_hist, train_itr, DEVICE)
@@ -148,7 +151,34 @@ def train_model(model, train_loader, valid_loader, DEVICE, MODEL_NAME, NUM_EPOCH
             valid_ax.plot(val_loss, color='red')
             valid_ax.set_xlabel('iterations')
             valid_ax.set_ylabel('validation loss')
-            train_loss_mpl.object = figure_1
+            # Calculate the average training and validation loss for this epoch
+            avg_train_loss = train_loss_hist.value
+            avg_val_loss = val_loss_hist.value
+            
+            # Append the average loss to a list to store epoch-wise loss values
+            train_loss_plot_list.append(avg_train_loss)
+            val_loss_plot_list.append(avg_val_loss)
+             # Validation loss is plotted after every epoch, so scale its x-axis based on epochs
+            #validation_x_scale = [(i + 1) * len(train_loader) for i in range(len(val_loss))]  # Scale for validation intervals
+            # Generate x-values for validation loss so it scales with the train loss
+            # Generate x-axis values representing the epoch numbers
+            epochs = range(1, len(train_loss_plot_list) + 1)
+
+            # Plot training and validation loss averages per epoch
+            ax.plot(epochs,train_loss_plot_list, label='Average Training Loss', color='blue', marker='o')
+            ax.plot(epochs,val_loss_plot_list, label='Average Validation Loss', color='red', marker='o')
+
+            # Set labels and add legend
+            ax.set_xlabel('Epochs')
+            ax.set_ylabel('Average Loss')
+            ax.legend(loc='upper right')
+
+            # Apply tight layout
+            plt.tight_layout()
+            # Update the Matplotlib object in Panel to show the figure
+            train_loss_mpl.object = figure
+
+            #train_loss_mpl.object = figure_1
             figure_1.savefig(f"{PLOT_DIR}/train_loss_{epoch+1}.png")
             figure_2.savefig(f"{PLOT_DIR}/valid_loss_{epoch+1}.png")
             print('SAVING PLOTS COMPLETE...')
