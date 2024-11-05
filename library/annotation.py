@@ -10,6 +10,7 @@ import random
 from IPython.display import display, Javascript
 import cv2
 import base64
+import pandas as pd
 
 def encode_image(filepath):
     with open(filepath, 'rb') as f:
@@ -72,9 +73,28 @@ def init_annotations(classes):
     def submit(_):
         global annotations, current_index
         image_file = files[w_progress.value]
+        path = './annotations/'
+        #print(image_file)
+        
+        image = cv2.imread(os.path.join(path, image_file))
+        height, width, _ = image.shape
         # save annotations for current image
         annotations[image_file] = w_bbox.bboxes
-        annotations_for_image = {'annotation': {'object': annotations[image_file]}}
+        if annotations[image_file]:
+            annotations_for_image = {'annotation': {'object': annotations[image_file]}}
+        else:
+            # No annotations, create a 'background' label with full image bounding box
+            background_annotation = {
+                
+                    'x': 0,
+                    'y': 0,
+                    'width': width,
+                    'height': height,
+                    'label':'background'
+                
+            }
+            annotations_for_image = {'annotation': {'object': background_annotation}}
+
         xml_string = xmltodict.unparse(annotations_for_image, pretty=True)
         with open(path + image_file[:-4] + '.xml', 'w') as f:
             #json.dump(annotations[image_file], f, indent=4)
@@ -122,9 +142,11 @@ def init_annotations(classes):
     return w_container
 
 
-def split_images_and_xml(source_folder, train_folder ='./images/train/', test_folder='./images/test', test_ratio=0.1):
+def split_images_and_xml(source_folder, train_folder='./images/train/', test_folder='./images/test/', test_ratio=0.1):
     """
     Splits images and their corresponding XML files into training and testing folders randomly.
+    Outputs individual CSV files for each image's annotations, along with the XML files.
+    
     Parameters:
     - source_folder: Folder containing the images and XML files.
     - train_folder: Destination folder for the training split.
@@ -134,7 +156,7 @@ def split_images_and_xml(source_folder, train_folder ='./images/train/', test_fo
     # Ensure the train and test folders exist
     os.makedirs(train_folder, exist_ok=True)
     os.makedirs(test_folder, exist_ok=True)
-    
+
     image_extensions = ['jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp']
     all_extensions = image_extensions + [ext.upper() for ext in image_extensions]  # Add uppercase versions
     # Find all image files in the source folder. .
@@ -142,27 +164,55 @@ def split_images_and_xml(source_folder, train_folder ='./images/train/', test_fo
     path = './annotations'
     for extension in all_extensions:
         image_files.extend(glob.glob(f"{path}/*.{extension}"))
+
     # Shuffle the image files to ensure random selection
     random.shuffle(image_files)
-    
+
     # Calculate the number of files to allocate to the test set
     num_test_files = int(len(image_files) * test_ratio)
-    
+
     # Split the files into training and testing sets
     test_files = image_files[:num_test_files]
     train_files = image_files[num_test_files:]
-    
-    # Copy the files to their respective folders
+
+    # Function to convert XML annotations to CSV format
+    def xml_to_csv(xml_file, output_csv_file):
+        with open(xml_file) as xml_fd:
+            annotation_data = xmltodict.parse(xml_fd.read())
+            objects = annotation_data.get('annotation', {}).get('object', [])
+            
+            # Handle case if only one object exists (not a list)
+            if not isinstance(objects, list):
+                objects = [objects]
+
+            csv_rows = []
+            for obj in objects:
+                if obj is not None:
+                    class_name = obj['label']
+                    x = obj['x']
+                    y = obj['y']
+                    width = obj['width']
+                    height = obj['height']
+                    csv_rows.append([class_name, x, y, width, height])
+
+            # Convert rows to a pandas DataFrame and save to CSV
+            df = pd.DataFrame(csv_rows, columns=['class', 'xmin', 'ymin', 'xmax', 'ymax'])
+            df.to_csv(output_csv_file, index=False)
+
+    # Copy the files to their respective folders and generate CSV annotations
     for file_path in test_files:
         shutil.copy(file_path, test_folder)
-        # Assuming XML file has the same base name as the image file
         xml_path = os.path.splitext(file_path)[0] + '.xml'
         if os.path.exists(xml_path):
             shutil.copy(xml_path, test_folder)
+            csv_path = os.path.splitext(file_path)[0] + '.csv'
+            xml_to_csv(xml_path, os.path.join(test_folder, os.path.basename(csv_path)))
     
     for file_path in train_files:
         shutil.copy(file_path, train_folder)
-        # Assuming XML file has the same base name as the image file
         xml_path = os.path.splitext(file_path)[0] + '.xml'
         if os.path.exists(xml_path):
             shutil.copy(xml_path, train_folder)
+            csv_path = os.path.splitext(file_path)[0] + '.csv'
+            xml_to_csv(xml_path, os.path.join(source_folder, os.path.basename(csv_path)))
+
